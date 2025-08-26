@@ -69,26 +69,80 @@ export function generateRepeatInstances(eventData: EventForm): EventForm[] {
     : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1년 후까지
 
   const { type, interval } = eventData.repeat;
-  let currentDate = new Date(startDate);
 
-  while (currentDate <= endDate) {
-    // 31일 매월, 윤년 규칙 체크
-    if (shouldCreateInstance(currentDate, startDate, type)) {
-      instances.push({
-        ...eventData,
-        date: currentDate.toISOString().split('T')[0], // YYYY-MM-DD
-        repeat: {
-          ...eventData.repeat,
-          // 반복 그룹 ID는 서버에서 설정
-        },
-      });
+  // ✅ 매월 반복 특별 처리
+  if (type === 'monthly') {
+    const originalDay = startDate.getDate();
+    let year = startDate.getFullYear();
+    let month = startDate.getMonth();
+
+    let loopCount = 0;
+    while (loopCount < 100) {
+      // 안전장치
+      // 해당 월의 일수 확인
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      // 31일 규칙: 해당 월에 원래 날짜가 있는지 확인
+      if (originalDay <= daysInMonth) {
+        const instanceDate = new Date(year, month, originalDay);
+
+        if (instanceDate <= endDate) {
+          instances.push({
+            ...eventData,
+            date: instanceDate.toISOString().split('T')[0],
+          });
+        } else {
+          break;
+        }
+      }
+
+      // 다음 달로
+      month += interval;
+      while (month > 11) {
+        month -= 12;
+        year++;
+      }
+
+      loopCount++;
     }
+  } else {
+    // 기존 로직 (daily, weekly, yearly)
+    let currentDate = new Date(startDate);
+    let loopCount = 0;
 
-    // 다음 날짜 계산
-    currentDate = getNextDate(currentDate, type, interval);
+    while (currentDate <= endDate) {
+      loopCount++;
 
-    // 무한 루프 방지
-    if (instances.length > 365) break;
+      // 31일 매월, 윤년 규칙 체크
+      const shouldCreate = shouldCreateInstance(currentDate, startDate, type);
+
+      if (shouldCreate) {
+        const instance = {
+          ...eventData,
+          date: currentDate.toISOString().split('T')[0], // YYYY-MM-DD
+          repeat: {
+            ...eventData.repeat,
+            // 반복 그룹 ID는 서버에서 설정
+          },
+        };
+
+        instances.push(instance);
+      }
+
+      // 다음 날짜 계산
+      const prevDate = new Date(currentDate);
+      currentDate = getNextDate(currentDate, type, interval);
+
+      // 무한 루프 방지
+      if (instances.length > 365 || loopCount > 1000) {
+        break;
+      }
+
+      // 날짜가 진행되지 않으면 중단 (무한루프 방지)
+      if (currentDate.getTime() === prevDate.getTime()) {
+        break;
+      }
+    }
   }
 
   return instances;
@@ -126,6 +180,7 @@ function getNextDate(date: Date, type: RepeatType, interval: number): Date {
       nextDate.setDate(date.getDate() + 7 * interval);
       break;
     case 'monthly':
+      // 매월은 generateRepeatInstances에서 특별 처리하므로 여기서는 단순 처리
       nextDate.setMonth(date.getMonth() + interval);
       break;
     case 'yearly':

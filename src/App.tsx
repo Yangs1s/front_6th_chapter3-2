@@ -448,6 +448,7 @@ function App() {
                   value={repeatType}
                   onChange={(e) => setRepeatType(e.target.value as RepeatType)}
                 >
+                  <MenuItem value="none">없음</MenuItem>
                   <MenuItem value="daily">매일</MenuItem>
                   <MenuItem value="weekly">매주</MenuItem>
                   <MenuItem value="monthly">매월</MenuItem>
@@ -456,8 +457,9 @@ function App() {
               </FormControl>
               <Stack direction="row" spacing={2}>
                 <FormControl fullWidth>
-                  <FormLabel>반복 간격</FormLabel>
+                  <FormLabel htmlFor={'repeatInterval'}>반복 간격</FormLabel>
                   <TextField
+                    id={'repeatInterval'}
                     size="small"
                     type="number"
                     value={repeatInterval}
@@ -466,8 +468,11 @@ function App() {
                   />
                 </FormControl>
                 <FormControl fullWidth>
-                  <FormLabel>반복 종료일</FormLabel>
+                  <FormLabel htmlFor={'endDate'}>반복 종료일</FormLabel>
                   <TextField
+                    id={'endDate'}
+                    role={'textbox'}
+                    aria-label={'반복 종료일'}
                     size="small"
                     type="date"
                     value={repeatEndDate}

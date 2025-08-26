@@ -92,3 +92,146 @@ export const setupMockHandlerDeletion = () => {
     })
   );
 };
+
+// 일괄(batch) CUD 전용 핸들러들 (/api/events-list)
+
+// CREATE: /api/events-list (배열 생성)
+export const setupMockHandlerBatchCreation = (initEvents = [] as Event[]) => {
+  const mockEvents: Event[] = [...initEvents];
+
+  server.use(
+    // 공용 조회
+    http.get('/api/events', () => {
+      return HttpResponse.json({ events: mockEvents });
+    }),
+    // 일괄 생성
+    http.post('/api/events-list', async ({ request }) => {
+      const body = (await request.json()) as { events: Event[] };
+      const repeatId = `repeat-${Date.now()}`;
+
+      const newEvents = body.events.map((event, idx) => {
+        const isRepeatEvent = event.repeat?.type && event.repeat.type !== 'none';
+        return {
+          ...event,
+          id: String(mockEvents.length + idx + 1),
+          repeat: {
+            ...event.repeat,
+            id: isRepeatEvent ? repeatId : undefined,
+          },
+        } as Event;
+      });
+
+      mockEvents.push(...newEvents);
+      return HttpResponse.json(newEvents, { status: 201 });
+    })
+  );
+};
+
+// UPDATE: /api/events-list (배열 수정)
+export const setupMockHandlerBatchUpdating = (initEvents = [] as Event[]) => {
+  const mockEvents: Event[] =
+    initEvents.length > 0
+      ? [...initEvents]
+      : [
+          {
+            id: '1',
+            title: '기존 회의',
+            date: '2025-10-15',
+            startTime: '09:00',
+            endTime: '10:00',
+            description: '기존 팀 미팅',
+            location: '회의실 B',
+            category: '업무',
+            repeat: { type: 'none', interval: 0 },
+            notificationTime: 10,
+          },
+          {
+            id: '2',
+            title: '기존 회의2',
+            date: '2025-10-15',
+            startTime: '11:00',
+            endTime: '12:00',
+            description: '기존 팀 미팅 2',
+            location: '회의실 C',
+            category: '업무',
+            repeat: { type: 'none', interval: 0 },
+            notificationTime: 10,
+          },
+        ];
+
+  server.use(
+    // 공용 조회
+    http.get('/api/events', () => {
+      return HttpResponse.json({ events: mockEvents });
+    }),
+    // 일괄 수정
+    http.put('/api/events-list', async ({ request }) => {
+      const body = (await request.json()) as { events: Partial<Event>[] };
+      let isUpdated = false;
+
+      body.events.forEach((partial) => {
+        if (!partial.id) return;
+        const index = mockEvents.findIndex((e) => e.id === partial.id);
+        if (index > -1) {
+          mockEvents[index] = { ...mockEvents[index], ...partial } as Event;
+          isUpdated = true;
+        }
+      });
+
+      return isUpdated
+        ? HttpResponse.json({ events: mockEvents })
+        : new HttpResponse('Event not found', { status: 404 });
+    })
+  );
+};
+
+// DELETE: /api/events-list (배열 삭제)
+export const setupMockHandlerBatchDeletion = (initEvents = [] as Event[]) => {
+  const mockEvents: Event[] =
+    initEvents.length > 0
+      ? [...initEvents]
+      : [
+          {
+            id: '1',
+            title: '삭제할 이벤트1',
+            date: '2025-10-15',
+            startTime: '09:00',
+            endTime: '10:00',
+            description: '삭제할 이벤트입니다',
+            location: '어딘가',
+            category: '기타',
+            repeat: { type: 'none', interval: 0 },
+            notificationTime: 10,
+          },
+          {
+            id: '2',
+            title: '삭제할 이벤트2',
+            date: '2025-10-16',
+            startTime: '11:00',
+            endTime: '12:00',
+            description: '삭제할 이벤트입니다2',
+            location: '어딘가',
+            category: '기타',
+            repeat: { type: 'none', interval: 0 },
+            notificationTime: 10,
+          },
+        ];
+
+  server.use(
+    // 공용 조회
+    http.get('/api/events', () => {
+      return HttpResponse.json({ events: mockEvents });
+    }),
+    // 일괄 삭제
+    http.delete('/api/events-list', async ({ request }) => {
+      const body = (await request.json()) as { eventIds: string[] };
+      const ids = new Set(body.eventIds);
+      for (let i = mockEvents.length - 1; i >= 0; i -= 1) {
+        if (ids.has(mockEvents[i].id)) {
+          mockEvents.splice(i, 1);
+        }
+      }
+      return new HttpResponse(null, { status: 204 });
+    })
+  );
+};

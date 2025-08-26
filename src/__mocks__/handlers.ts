@@ -36,4 +36,27 @@ export const handlers = [
 
     return new HttpResponse(null, { status: 404 });
   }),
+
+  // ✅ 반복 일정용 events-list 핸들러들 추가
+  http.post('/api/events-list', async ({ request }) => {
+    const requestBody = (await request.json()) as { events: Event[] };
+    const newEvents = requestBody.events.map((event, index) => ({
+      ...event,
+      id: String(events.length + index + 1),
+    }));
+
+    return HttpResponse.json({ events: newEvents }, { status: 201 });
+  }),
+
+  http.put('/api/events-list', async ({ request }) => {
+    const requestBody = (await request.json()) as { events: Event[] };
+
+    return HttpResponse.json({ events: requestBody.events });
+  }),
+
+  http.delete('/api/events-list', async ({ request }) => {
+    (await request.json()) as { eventIds: string[] };
+
+    return new HttpResponse(null, { status: 204 });
+  }),
 ];
