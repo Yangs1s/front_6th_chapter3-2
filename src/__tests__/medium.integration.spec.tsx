@@ -1,10 +1,12 @@
 import CssBaseline from '@mui/material/CssBaseline';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
-import { render, screen, within, act } from '@testing-library/react';
+import { render, screen, within, act, renderHook, waitFor } from '@testing-library/react';
 import { UserEvent, userEvent } from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { SnackbarProvider } from 'notistack';
 import { ReactElement } from 'react';
+import { expect } from 'vitest';
+import { debug } from 'vitest-preview';
 
 import {
   setupMockHandlerCreation,
@@ -12,6 +14,7 @@ import {
   setupMockHandlerUpdating,
 } from '../__mocks__/handlersUtils';
 import App from '../App';
+import { useEventForm } from '../hooks/useEventForm.ts';
 import { server } from '../setupTests';
 import { Event } from '../types';
 
@@ -339,4 +342,27 @@ it('notificationTime을 10으로 하면 지정 시간 10분 전 알람 텍스트
   });
 
   expect(screen.getByText('10분 후 기존 회의 일정이 시작됩니다.')).toBeInTheDocument();
+});
+
+//- 일정 생성 또는 수정 시 반복 유형을 선택할 수 있다.
+// - 반복 유형은 다음과 같다: 매일, 매주, 매월, 매년
+//     - 31일에 매월을 선택한다면 → 매월 마지막이 아닌, 31일에만 생성하세요.
+//     - 윤년 29일에 매년을 선택한다면 → 29일에만 생성하세요!
+
+describe('반복 유형 선택', () => {
+  it('일정 생성 또는 수정 시 반복 유형을 선택할 수 있다.', async () => {
+    const { user } = setup(<App />);
+
+    await screen.findByText('일정 로딩 완료!');
+
+    const checkbox = screen.getByLabelText('반복 일정');
+    expect(checkbox).toBeChecked();
+
+    const repeatTypeSelect = await screen.findByText('반복 유형', {}, { timeout: 1000 });
+    expect(repeatTypeSelect).toBeInTheDocument();
+
+    await user.click(within(screen.getByLabelText('반복 선택')).getByRole('combobox'));
+
+    debug();
+  });
 });

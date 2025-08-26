@@ -443,6 +443,7 @@ function App() {
               <FormControl fullWidth>
                 <FormLabel>반복 유형</FormLabel>
                 <Select
+                  aria-label={'반복 선택'}
                   size="small"
                   value={repeatType}
                   onChange={(e) => setRepeatType(e.target.value as RepeatType)}

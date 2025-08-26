@@ -14,7 +14,8 @@
     "build": "tsc -b && vite build",
     "lint:eslint": "eslint . --ext ts,tsx --report-unused-disable-directives",
     "lint:tsc": "tsc --pretty",
-    "lint": "pnpm lint:eslint && pnpm lint:tsc"
+    "lint": "pnpm lint:eslint && pnpm lint:tsc",
+    "vitest-preview": "vitest-preview"
   },
   "dependencies": {
     "@emotion/react": "^11.11.4",
@@ -26,7 +27,8 @@
     "msw": "^2.10.3",
     "notistack": "^3.0.2",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "vitest-preview": "^0.0.1"
   },
   "devDependencies": {
     "@eslint/js": "9.33.0",
