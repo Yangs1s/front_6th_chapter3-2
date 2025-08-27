@@ -27,21 +27,11 @@ export const useEventOperations = (editing: boolean, onSave?: () => void) => {
       let response;
 
       if (editing) {
-        if (isRepeating) {
-          // 반복 일정 수정: events-list API 사용
-          response = await fetch('/api/events-list', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ events: [eventData] }),
-          });
-        } else {
-          // 단일 일정 수정: 기존 API 사용
-          response = await fetch(`/api/events/${(eventData as Event).id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(eventData),
-          });
-        }
+        response = await fetch(`/api/events/${(eventData as Event).id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(eventData),
+        });
       } else {
         if (isRepeating) {
           const repeatInstances = generateRepeatInstances(eventData as EventForm);

@@ -4,7 +4,6 @@ import { describe } from 'vitest';
 
 import {
   setupMockHandlerBatchCreation,
-  setupMockHandlerBatchUpdating,
   setupMockHandlerCreation,
   setupMockHandlerDeletion,
   setupMockHandlerUpdating,
@@ -253,7 +252,7 @@ describe('반복 일정 API 테스트', () => {
   });
 
   it('반복 일정 수정 시 events-list PUT API를 호출한다', async () => {
-    setupMockHandlerBatchUpdating();
+    setupMockHandlerUpdating();
 
     const { result } = renderHook(() => useEventOperations(true));
     await act(() => Promise.resolve(null));
