@@ -10,6 +10,7 @@ import { debug } from 'vitest-preview';
 
 import {
   setupMockHandlerBatchCreation,
+  setupMockHandlerBatchUpdating,
   setupMockHandlerCreation,
   setupMockHandlerDeletion,
   setupMockHandlerUpdating,
@@ -55,6 +56,46 @@ const saveSchedule = async (
   await user.click(screen.getByRole('option', { name: `${category}-option` }));
 
   await user.click(screen.getByTestId('event-submit-button'));
+};
+
+const createRepeatSchedule = async (
+  user: UserEvent,
+  schedule: {
+    title: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    category: string;
+    repeatType: 'daily' | 'weekly' | 'monthly' | 'yearly';
+    endDate?: string;
+  }
+) => {
+  // 1. 일정 추가 클릭
+  await user.click(screen.getAllByText('일정 추가')[0]);
+
+  // 2. 기본 정보 입력
+  await user.type(screen.getByLabelText('제목'), schedule.title);
+  await user.type(screen.getByLabelText('날짜'), schedule.date);
+  await user.type(screen.getByLabelText('시작 시간'), schedule.startTime);
+  await user.type(screen.getByLabelText('종료 시간'), schedule.endTime);
+  await user.click(screen.getByLabelText('카테고리'));
+  await user.click(within(screen.getByLabelText('카테고리')).getByRole('combobox'));
+  await user.click(screen.getByRole('option', { name: `${schedule.category}-option` }));
+
+  // 3. 반복 설정 (체크박스는 이미 체크되어 있다고 가정)
+  await user.click(within(screen.getByLabelText('반복 선택')).getByRole('combobox'));
+  const typeMap = { daily: '매일', weekly: '매주', monthly: '매월', yearly: '매년' };
+  await user.click(await screen.findByText(typeMap[schedule.repeatType]));
+
+  if (schedule.endDate) {
+    const allEndDateInputs = screen.getAllByLabelText('반복 종료일');
+    const endDateInput = allEndDateInputs[0];
+    await user.type(endDateInput, schedule.endDate);
+  }
+
+  // 4. Submit
+  await user.click(screen.getByTestId('event-submit-button'));
+  await screen.findByText('일정이 추가되었습니다.');
 };
 
 describe('일정 CRUD 및 기본 기능', () => {
@@ -405,7 +446,7 @@ describe('반복 유형 선택', () => {
 
     const checkBox = screen.getByLabelText('반복 일정');
     expect(checkBox).toBeChecked();
-    debug();
+
     // 31일 날짜 입력
     await user.type(screen.getByLabelText('제목'), '월말 회의');
     await user.type(screen.getByLabelText('날짜'), '2025-10-31');
@@ -602,5 +643,416 @@ describe('반복 유형 선택', () => {
       expect(eventList.getByText('2025-10-03')).toBeInTheDocument();
     });
     // 7일간 매일 반복이 생성되는지 콘솔에서 확인 가능
+  });
+});
+// 🔥 반복일정 통합테스트 - medium.integration.spec.tsx에 추가
+
+describe('반복일정 표시', () => {
+  it('매주 반복일정이 캘린더에 여러 날짜에 표시된다', async () => {
+    setupMockHandlerBatchCreation();
+    const { user } = setup(<App />);
+
+    await user.type(screen.getByLabelText('제목'), '주간 회의');
+    await user.type(screen.getByLabelText('날짜'), '2025-10-01');
+    await user.type(screen.getByLabelText('시작 시간'), '14:00');
+    await user.type(screen.getByLabelText('종료 시간'), '15:00');
+    await user.type(screen.getByLabelText('설명'), '매주 팀 회의');
+    await user.type(screen.getByLabelText('위치'), '회의실 A');
+    await user.click(screen.getByLabelText('카테고리'));
+    await user.click(within(screen.getByLabelText('카테고리')).getByRole('combobox'));
+    await user.click(screen.getByRole('option', { name: '업무-option' }));
+    // 반복 설정
+
+    await user.click(within(screen.getByLabelText('반복 선택')).getByRole('combobox'));
+    await user.click(await screen.findByText('매주'));
+
+    const allEndDateInputs = screen.getAllByLabelText('반복 종료일');
+    const endDateInput = allEndDateInputs[0]; // 첫 번째 요소
+    await user.type(endDateInput, '2025-10-22');
+    await user.click(screen.getByTestId('event-submit-button'));
+
+    await screen.findByText('일정이 추가되었습니다.');
+
+    // 월간뷰에서 여러 날짜에 표시되는지 확인
+    const monthView = screen.getByTestId('month-view');
+    expect(within(monthView).getAllByText('주간 회의')).toHaveLength(4); // 10/1, 10/8, 10/15, 10/22
+  });
+
+  it('반복일정이 이벤트 리스트에 반복 표시와 함께 나타난다', async () => {
+    setupMockHandlerBatchCreation();
+    const { user } = setup(<App />);
+
+    await user.type(screen.getByLabelText('제목'), '매일 운동');
+    await user.type(screen.getByLabelText('날짜'), '2025-10-01');
+    await user.type(screen.getByLabelText('시작 시간'), '14:00');
+    await user.type(screen.getByLabelText('종료 시간'), '15:00');
+    await user.click(screen.getByLabelText('카테고리'));
+    await user.click(within(screen.getByLabelText('카테고리')).getByRole('combobox'));
+    await user.click(screen.getByRole('option', { name: '개인-option' }));
+    // 매일 반복 설정
+
+    await user.click(within(screen.getByLabelText('반복 선택')).getByRole('combobox'));
+    await user.click(await screen.findByText('매일'));
+    const allEndDateInputs = screen.getAllByLabelText('반복 종료일');
+    const endDateInput = allEndDateInputs[0]; // 첫 번째 요소
+    await user.type(endDateInput, '2025-10-05');
+    await user.click(screen.getByTestId('event-submit-button'));
+
+    await screen.findByText('일정이 추가되었습니다.');
+
+    const eventList = screen.getByTestId('event-list');
+    expect(within(eventList).getAllByText('매일 운동')).toHaveLength(5);
+
+    debug();
+  });
+
+  it('월별 반복일정이 다른 월로 넘어가도 올바르게 표시된다', async () => {
+    setupMockHandlerBatchCreation();
+    const { user } = setup(<App />);
+
+    await user.type(screen.getByLabelText('제목'), '월간 보고');
+    await user.type(screen.getByLabelText('날짜'), '2025-10-31');
+    await user.type(screen.getByLabelText('시작 시간'), '14:00');
+    await user.type(screen.getByLabelText('종료 시간'), '15:00');
+    await user.click(screen.getByLabelText('카테고리'));
+    await user.click(within(screen.getByLabelText('카테고리')).getByRole('combobox'));
+    await user.click(screen.getByRole('option', { name: '개인-option' }));
+    // 매월 반복 설정
+
+    await user.click(within(screen.getByLabelText('반복 선택')).getByRole('combobox'));
+    await user.click(await screen.findByText('매월'));
+
+    const allEndDateInputs = screen.getAllByLabelText('반복 종료일');
+    const endDateInput = allEndDateInputs[0];
+
+    await user.type(endDateInput, '2025-12-31');
+    await user.click(screen.getByTestId('event-submit-button'));
+
+    // 다음 달로 이동
+    const nextButton = screen.getByLabelText('Next');
+    await user.click(nextButton);
+
+    const monthView = screen.getByTestId('month-view');
+    // 11월에는 31일이 없어서 표시되지 않아야 함
+    expect(within(monthView).queryByText('월간 보고')).not.toBeInTheDocument();
+
+    // 12월로 이동
+    await user.click(nextButton);
+    // 12월 31일에는 표시되어야 함
+    expect(within(monthView).getByText('월간 보고')).toBeInTheDocument();
+  });
+});
+
+describe('반복종료', () => {
+  it('종료일 이후로는 반복일정이 생성되지 않는다', async () => {
+    setupMockHandlerBatchCreation();
+    const { user } = setup(<App />);
+
+    await createRepeatSchedule(user, {
+      title: '단기 프로젝트 회의',
+      date: '2025-10-01',
+      startTime: '14:00',
+      endTime: '15:00',
+      category: '개인',
+      repeatType: 'daily',
+      endDate: '2025-10-03', // 3일까지만
+    });
+
+    const eventList = screen.getByTestId('event-list');
+    const eventElements = within(eventList).getAllByText('단기 프로젝트 회의');
+    expect(eventElements).toHaveLength(3); // 10/1, 10/2, 10/3만
+
+    // 날짜 확인
+    expect(within(eventList).getByText('2025-10-01')).toBeInTheDocument();
+    expect(within(eventList).getByText('2025-10-03')).toBeInTheDocument();
+    expect(within(eventList).queryByText('2025-10-04')).not.toBeInTheDocument();
+  });
+
+  it('종료일이 설정되지 않으면 1년간 반복일정이 생성된다', async () => {
+    setupMockHandlerBatchCreation();
+    const { user } = setup(<App />);
+
+    await createRepeatSchedule(user, {
+      title: '장기 운동 계획',
+      date: '2025-10-01',
+      startTime: '07:00',
+      endTime: '08:00',
+      repeatType: 'weekly',
+      category: '개인',
+    });
+
+    const eventList = screen.getByTestId('event-list');
+    const eventElements = within(eventList).getAllByText('장기 운동 계획');
+    // 1년간 매주 = 대략 52개 정도 (실제로는 53개일 수도)
+    expect(eventElements.length).toBeLessThan(55);
+  });
+
+  it('종료일 당일까지는 반복일정이 포함된다', async () => {
+    setupMockHandlerBatchCreation();
+    const { user } = setup(<App />);
+
+    await createRepeatSchedule(user, {
+      title: '주말 특강',
+      date: '2025-10-04', // 토요일
+      startTime: '07:00',
+      endTime: '08:00',
+      repeatType: 'weekly',
+      category: '개인',
+      endDate: '2025-10-18',
+    });
+
+    // 매주 반복, 정확히 2주 후 토요일까지
+
+    await screen.findByText('일정이 추가되었습니다.');
+
+    const eventList = screen.getByTestId('event-list');
+    expect(within(eventList).getAllByText('주말 특강')).toHaveLength(3);
+
+    // 종료일 당일 포함 확인
+    expect(within(eventList).getByText('2025-10-04')).toBeInTheDocument(); // 첫째 주
+    expect(within(eventList).getByText('2025-10-11')).toBeInTheDocument(); // 둘째 주
+    expect(within(eventList).getByText('2025-10-18')).toBeInTheDocument(); // 셋째 주 (종료일)
+  });
+});
+
+describe('반복일정 단일수정', () => {
+  it('반복일정 중 하나만 수정해도 다른 반복일정은 그대로 유지된다', async () => {
+    setupMockHandlerBatchUpdating([
+      {
+        title: '팀 스탠드업1',
+        date: '2025-09-29',
+        startTime: '14:00',
+        endTime: '20:00',
+        category: '개인',
+        id: '1',
+        description: '',
+        location: '',
+        repeat: {
+          type: 'none',
+          interval: 0,
+        },
+        notificationTime: 0,
+      },
+    ]);
+    const { user } = setup(<App />);
+
+    // ✅ createRepeatSchedule 사용
+    await createRepeatSchedule(user, {
+      title: '팀 스탠드업',
+      date: '2025-10-01',
+      startTime: '14:00',
+      endTime: '20:00',
+      category: '개인',
+      repeatType: 'daily',
+      endDate: '2025-10-05',
+    });
+    debug();
+    // 첫 번째 일정만 수정
+    const editButtons = screen.getAllByLabelText('Edit event');
+    await user.click(editButtons[0]);
+
+    await user.clear(screen.getByLabelText('제목'));
+    await user.type(screen.getByLabelText('제목'), '수정된 스탠드업');
+    await user.clear(screen.getByLabelText('시작 시간'));
+    await user.type(screen.getByLabelText('시작 시간'), '10:00');
+
+    await user.click(screen.getByTestId('event-submit-button'));
+    // debug();
+    await screen.findByText('일정이 수정되었습니다');
+
+    const eventList = screen.getByTestId('event-list');
+    expect(within(eventList).getByText('수정된 스탠드업')).toBeInTheDocument();
+    expect(within(eventList).getAllByText('팀 스탠드업')).toHaveLength(4);
+    expect(within(eventList).getByText('10:00 - 15:00')).toBeInTheDocument(); // 수정된 시간
+  });
+
+  it('반복일정 단일수정 시 해당 일정이 반복그룹에서 분리된다', async () => {
+    setupMockHandlerBatchCreation();
+    setupMockHandlerUpdating();
+    const { user } = setup(<App />);
+
+    // ✅ createRepeatSchedule 사용
+    await createRepeatSchedule(user, {
+      title: '주간 리뷰',
+      date: '2025-10-03',
+      startTime: '17:00',
+      endTime: '18:00',
+      category: '업무',
+      repeatType: 'weekly',
+      endDate: '2025-10-17',
+    });
+
+    // 두 번째 일정 수정
+    const editButtons = screen.getAllByLabelText('Edit event');
+    await user.click(editButtons[1]);
+
+    await user.clear(screen.getByLabelText('제목'));
+    await user.type(screen.getByLabelText('제목'), '특별 리뷰');
+
+    // 반복 설정 해제 (단일 일정으로 변경)
+    const repeatCheckBox = screen.getByLabelText('반복 일정');
+    await user.click(repeatCheckBox);
+
+    await user.click(screen.getByTestId('event-submit-button'));
+
+    const eventList = screen.getByTestId('event-list');
+    expect(within(eventList).getByText('특별 리뷰')).toBeInTheDocument();
+    expect(within(eventList).getAllByText('주간 리뷰')).toHaveLength(2); // 원래 3개에서 1개 분리됨
+  });
+
+  it('수정된 반복일정이 UI에 즉시 반영된다', async () => {
+    setupMockHandlerBatchCreation();
+    setupMockHandlerUpdating();
+    const { user } = setup(<App />);
+
+    // ✅ createRepeatSchedule 사용
+    await createRepeatSchedule(user, {
+      title: '점심 약속',
+      date: '2025-10-01',
+      startTime: '12:00',
+      endTime: '13:00',
+      category: '개인',
+      repeatType: 'daily',
+      endDate: '2025-10-03',
+    });
+
+    // 마지막 일정 수정
+    const editButtons = screen.getAllByLabelText('Edit event');
+    await user.click(editButtons[2]);
+
+    await user.clear(screen.getByLabelText('위치'));
+    await user.type(screen.getByLabelText('위치'), '새로운 카페');
+    await user.clear(screen.getByLabelText('설명'));
+    await user.type(screen.getByLabelText('설명'), '수정된 약속');
+
+    await user.click(screen.getByTestId('event-submit-button'));
+    await screen.findByText('일정이 수정되었습니다.');
+
+    // 수정사항이 즉시 반영되는지 확인
+    const eventList = screen.getByTestId('event-list');
+    expect(within(eventList).getByText('새로운 카페')).toBeInTheDocument();
+    expect(within(eventList).getByText('수정된 약속')).toBeInTheDocument();
+    expect(within(eventList).getAllByText('레스토랑')).toHaveLength(2); // 나머지 2개는 그대로
+  });
+});
+
+describe('반복일정 단일삭제', () => {
+  it('반복일정 중 하나만 삭제해도 다른 반복일정은 그대로 유지된다', async () => {
+    setupMockHandlerBatchCreation();
+    setupMockHandlerDeletion();
+    const { user } = setup(<App />);
+
+    // 반복일정 생성
+    await saveSchedule(user, {
+      title: '코드 리뷰',
+      date: '2025-10-01',
+      startTime: '15:00',
+      endTime: '16:00',
+      description: '팀 코드 리뷰',
+      location: '개발실',
+      category: '업무',
+    });
+
+    const checkBox = screen.getByLabelText('반복 일정');
+    await user.click(checkBox);
+    await user.click(within(screen.getByLabelText('반복 선택')).getByRole('combobox'));
+    await user.click(await screen.findByText('매일'));
+
+    const endDateInput = screen.getByLabelText('반복 종료일');
+    await user.type(endDateInput, '2025-10-05');
+    await user.click(screen.getByTestId('event-submit-button'));
+
+    await screen.findByText('일정이 추가되었습니다.');
+
+    // 중간 일정 하나만 삭제
+    const deleteButtons = screen.getAllByLabelText('Delete event');
+    expect(deleteButtons).toHaveLength(5); // 원래 5개
+
+    await user.click(deleteButtons[2]); // 세 번째 일정(10/3) 삭제
+
+    const eventList = screen.getByTestId('event-list');
+    expect(within(eventList).getAllByText('코드 리뷰')).toHaveLength(4); // 4개 남음
+    expect(within(eventList).queryByText('2025-10-03')).not.toBeInTheDocument(); // 10/3 삭제됨
+    expect(within(eventList).getByText('2025-10-01')).toBeInTheDocument(); // 나머지는 유지
+    expect(within(eventList).getByText('2025-10-05')).toBeInTheDocument();
+  });
+
+  it('삭제된 반복일정이 캘린더 뷰에서도 즉시 사라진다', async () => {
+    setupMockHandlerBatchCreation();
+    setupMockHandlerDeletion();
+    const { user } = setup(<App />);
+
+    // 주간 반복일정 생성
+    await saveSchedule(user, {
+      title: '운동',
+      date: '2025-10-01', // 수요일
+      startTime: '18:00',
+      endTime: '19:00',
+      description: '헬스장 운동',
+      location: '헬스장',
+      category: '개인',
+    });
+
+    const checkBox = screen.getByLabelText('반복 일정');
+    await user.click(checkBox);
+    await user.click(within(screen.getByLabelText('반복 선택')).getByRole('combobox'));
+    await user.click(await screen.findByText('매주'));
+
+    const endDateInput = screen.getByLabelText('반복 종료일');
+    await user.type(endDateInput, '2025-10-15');
+    await user.click(screen.getByTestId('event-submit-button'));
+
+    // 월간뷰에서 확인
+    const monthView = screen.getByTestId('month-view');
+    expect(within(monthView).getAllByText('운동')).toHaveLength(3); // 10/1, 10/8, 10/15
+
+    // 두 번째 일정(10/8) 삭제
+    const deleteButtons = screen.getAllByLabelText('Delete event');
+    await user.click(deleteButtons[1]);
+
+    // 캘린더에서도 사라졌는지 확인
+    expect(within(monthView).getAllByText('운동')).toHaveLength(2); // 10/1, 10/15만 남음
+  });
+
+  it('모든 반복일정을 하나씩 삭제하면 완전히 사라진다', async () => {
+    setupMockHandlerBatchCreation();
+    setupMockHandlerDeletion();
+    const { user } = setup(<App />);
+
+    // 짧은 반복일정 생성
+    await saveSchedule(user, {
+      title: '임시 작업',
+      date: '2025-10-01',
+      startTime: '14:00',
+      endTime: '15:00',
+      description: '임시 작업',
+      location: '사무실',
+      category: '업무',
+    });
+
+    const checkBox = screen.getByLabelText('반복 일정');
+    await user.click(checkBox);
+    await user.click(within(screen.getByLabelText('반복 선택')).getByRole('combobox'));
+    await user.click(await screen.findByText('매일'));
+
+    const endDateInput = screen.getByLabelText('반복 종료일');
+    await user.type(endDateInput, '2025-10-02'); // 2일간만
+    await user.click(screen.getByTestId('event-submit-button'));
+
+    const eventList = screen.getByTestId('event-list');
+    expect(within(eventList).getAllByText('임시 작업')).toHaveLength(2);
+
+    // 첫 번째 삭제
+    let deleteButtons = screen.getAllByLabelText('Delete event');
+    await user.click(deleteButtons[0]);
+    expect(within(eventList).getAllByText('임시 작업')).toHaveLength(1);
+
+    // 두 번째 삭제
+    deleteButtons = screen.getAllByLabelText('Delete event');
+    await user.click(deleteButtons[0]);
+
+    // 완전히 사라짐
+    expect(within(eventList).queryByText('임시 작업')).not.toBeInTheDocument();
+    expect(within(eventList).getByText('검색 결과가 없습니다.')).toBeInTheDocument();
   });
 });
