@@ -1,6 +1,13 @@
 import { Event, EventForm, RepeatType } from '../types';
 import { getWeekDates, isDateInRange } from './dateUtils';
 
+function formatDateToString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function filterEventsByDateRange(events: Event[], start: Date, end: Date): Event[] {
   return events.filter((event) => {
     const eventDate = new Date(event.date);
@@ -89,7 +96,7 @@ export function generateRepeatInstances(eventData: EventForm): EventForm[] {
         if (instanceDate <= endDate) {
           instances.push({
             ...eventData,
-            date: instanceDate.toISOString().split('T')[0],
+            date: formatDateToString(instanceDate),
           });
         } else {
           break;
@@ -105,8 +112,49 @@ export function generateRepeatInstances(eventData: EventForm): EventForm[] {
 
       loopCount++;
     }
+  } else if (type === 'yearly') {
+    // ✅ 매년 반복 특별 처리 (윤년 고려)
+    const originalMonth = startDate.getMonth();
+    const originalDay = startDate.getDate();
+    let year = startDate.getFullYear();
+
+    let loopCount = 0;
+    while (loopCount < 100) {
+      // 윤년 2월 29일 처리
+      if (originalMonth === 1 && originalDay === 29) {
+        // 2월 29일인 경우, 윤년에만 생성
+        if (isLeapYear(year)) {
+          const instanceDate = new Date(year, originalMonth, originalDay);
+
+          if (instanceDate <= endDate) {
+            instances.push({
+              ...eventData,
+              date: formatDateToString(instanceDate),
+            });
+          } else {
+            break;
+          }
+        }
+      } else {
+        // 일반적인 경우
+        const instanceDate = new Date(year, originalMonth, originalDay);
+
+        if (instanceDate <= endDate) {
+          instances.push({
+            ...eventData,
+            date: formatDateToString(instanceDate),
+          });
+        } else {
+          break;
+        }
+      }
+
+      // 다음 해로
+      year += interval;
+      loopCount++;
+    }
   } else {
-    // 기존 로직 (daily, weekly, yearly)
+    // 기존 로직 (daily, weekly)
     let currentDate = new Date(startDate);
     let loopCount = 0;
 
@@ -119,7 +167,7 @@ export function generateRepeatInstances(eventData: EventForm): EventForm[] {
       if (shouldCreate) {
         const instance = {
           ...eventData,
-          date: currentDate.toISOString().split('T')[0], // YYYY-MM-DD
+          date: formatDateToString(currentDate), // YYYY-MM-DD
           repeat: {
             ...eventData.repeat,
             // 반복 그룹 ID는 서버에서 설정
@@ -179,10 +227,25 @@ function getNextDate(date: Date, type: RepeatType, interval: number): Date {
     case 'weekly':
       nextDate.setDate(date.getDate() + 7 * interval);
       break;
-    case 'monthly':
+    case 'monthly': {
       // 매월은 generateRepeatInstances에서 특별 처리하므로 여기서는 단순 처리
-      nextDate.setMonth(date.getMonth() + interval);
+      const originalDay = date.getDate();
+      const targetMonth = date.getMonth() + interval;
+      const targetYear = date.getFullYear() + Math.floor(targetMonth / 12);
+      const adjustedMonth = targetMonth % 12;
+
+      // 해당 월의 최대 일수 확인
+      const maxDayInMonth = new Date(targetYear, adjustedMonth + 1, 0).getDate();
+
+      // 31일이 없는 달은 해당 월의 마지막 날로 설정하거나 건너뛰기
+      if (originalDay <= maxDayInMonth) {
+        nextDate.setFullYear(targetYear, adjustedMonth, originalDay);
+      } else {
+        // 31일이 없는 달 처리 (예: 2월에는 31일이 없으므로)
+        nextDate.setFullYear(targetYear, adjustedMonth + 1, 0); // 해당 월 마지막 날
+      }
       break;
+    }
     case 'yearly':
       nextDate.setFullYear(date.getFullYear() + interval);
       break;

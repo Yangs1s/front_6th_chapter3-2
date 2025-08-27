@@ -64,7 +64,7 @@ it('정의된 이벤트 정보를 기준으로 적절하게 저장이 된다', a
   };
 
   await act(async () => {
-    await result.current.saveEvent(newEvent);
+    await result.current.saveEvent(newEvent, false);
   });
 
   expect(result.current.events).toEqual([{ ...newEvent, id: '1' }]);
@@ -91,7 +91,7 @@ it("새로 정의된 'title', 'endTime' 기준으로 적절하게 일정이 업�
   };
 
   await act(async () => {
-    await result.current.saveEvent(updatedEvent);
+    await result.current.saveEvent(updatedEvent, false);
   });
 
   expect(result.current.events[0]).toEqual(updatedEvent);
@@ -146,7 +146,7 @@ it("존재하지 않는 이벤트 수정 시 '일정 저장 실패'라는 토스
   };
 
   await act(async () => {
-    await result.current.saveEvent(nonExistentEvent);
+    await result.current.saveEvent(nonExistentEvent, false);
   });
 
   expect(enqueueSnackbarFn).toHaveBeenCalledWith('일정 저장 실패', { variant: 'error' });

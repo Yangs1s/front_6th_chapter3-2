@@ -5,7 +5,7 @@ import { UserEvent, userEvent } from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { SnackbarProvider } from 'notistack';
 import { ReactElement } from 'react';
-import { expect } from 'vitest';
+import { expect, vi } from 'vitest';
 import { debug } from 'vitest-preview';
 
 import {
@@ -15,7 +15,6 @@ import {
   setupMockHandlerUpdating,
 } from '../__mocks__/handlersUtils';
 import App from '../App';
-import { useEventForm } from '../hooks/useEventForm.ts';
 import { server } from '../setupTests';
 import { Event } from '../types';
 
@@ -63,7 +62,9 @@ describe('일정 CRUD 및 기본 기능', () => {
     setupMockHandlerCreation();
 
     const { user } = setup(<App />);
+    const checkBox = screen.getByLabelText('반복 일정');
 
+    await user.click(checkBox);
     await saveSchedule(user, {
       title: '새 회의',
       date: '2025-10-15',
@@ -107,11 +108,14 @@ describe('일정 CRUD 및 기본 기능', () => {
 
     const { user } = setup(<App />);
     const eventList = within(screen.getByTestId('event-list'));
+
+    // 삭제할 이벤트가 존재하는지 먼저 확인
     expect(await eventList.findByText('삭제할 이벤트')).toBeInTheDocument();
 
     // 삭제 버튼 클릭
     const allDeleteButton = await screen.findAllByLabelText('Delete event');
     await user.click(allDeleteButton[0]);
+    // 삭제 후 해당 이벤트가 더 이상 존재하지 않는지 확인 (비동기 처리 대기)
 
     expect(eventList.queryByText('삭제할 이벤트')).not.toBeInTheDocument();
   });
@@ -136,6 +140,10 @@ describe('일정 뷰', () => {
     setupMockHandlerCreation();
 
     const { user } = setup(<App />);
+    const checkBox = screen.getByLabelText('반복 일정');
+
+    await user.click(checkBox);
+
     await saveSchedule(user, {
       title: '이번주 팀 회의',
       date: '2025-10-02',
@@ -169,6 +177,10 @@ describe('일정 뷰', () => {
     setupMockHandlerCreation();
 
     const { user } = setup(<App />);
+    const checkBox = screen.getByLabelText('반복 일정');
+
+    await user.click(checkBox);
+
     await saveSchedule(user, {
       title: '이번달 팀 회의',
       date: '2025-10-02',
@@ -356,6 +368,7 @@ describe('반복 유형 선택', () => {
   });
 
   it('일정 생성 또는 수정 시 반복 유형을 선택할 수 있다.', async () => {
+    setupMockHandlerCreation();
     const { user } = setup(<App />);
 
     await screen.findByText('일정 로딩 완료!');
@@ -387,35 +400,43 @@ describe('반복 유형 선택', () => {
   });
 
   it('31일에 매월을 선택하면 31일이 있는 달에만 반복 일정이 생성된다', async () => {
+    setupMockHandlerBatchCreation();
     const { user } = setup(<App />);
 
-    await screen.findByText('일정 로딩 완료!');
-
+    const checkBox = screen.getByLabelText('반복 일정');
+    expect(checkBox).toBeChecked();
+    debug();
     // 31일 날짜 입력
     await user.type(screen.getByLabelText('제목'), '월말 회의');
-    await user.type(screen.getByLabelText('날짜'), '2024-01-31');
+    await user.type(screen.getByLabelText('날짜'), '2025-10-31');
     await user.type(screen.getByLabelText('시작 시간'), '10:00');
     await user.type(screen.getByLabelText('종료 시간'), '11:00');
     // 반복 설정
-    const checkBox = screen.getByLabelText('반복 일정');
-    expect(checkBox).toBeChecked();
 
     expect(screen.getByText('반복 유형')).toBeInTheDocument();
     expect(screen.getByText('반복 간격')).toBeInTheDocument();
 
     await user.click(within(screen.getByLabelText('반복 선택')).getByRole('combobox'));
     await user.click(await screen.findByText('매월'));
-
-    // 종료일 설정 (6개월 후)
-
-    await user.type(screen.getByLabelText('반복 종료일'), '2025-08-31');
-
+    const allEndDateInputs = screen.getAllByLabelText('반복 종료일');
+    const endDateInput = allEndDateInputs[0]; // 첫 번째 요소
+    await user.type(endDateInput, '2025-12-31');
     // 일정 저장
     await user.click(screen.getByTestId('event-submit-button'));
+    await screen.findByText('일정이 추가되었습니다.');
+    // 실제 검증: 생성된 일정들 확인
 
-    // 콘솔에서 31일 규칙 확인 - 실제로는 1월, 3월, 5월, 7월에만 생성되어야 함
-    // (2월, 4월, 6월은 31일이 없어서 건너뛰기)
-    // 실제 검증은 콘솔 로그나 생성된 일정 개수로 확인 가능
+    // const prevButton = screen.getByRole('button', { name: 'Previous' });
+    // await user.click(prevButton);
+    // await user.click(prevButton);
+    // await user.click(prevButton);
+
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    await waitFor(() => expect(screen.getByText('2025-10-31')).toBeInTheDocument());
+
+    // const eventList = within(screen.getByTestId('event-list'));
   });
 
   it('윤년 2월 29일 매년 반복은 윤년에만 생성된다', async () => {
@@ -437,7 +458,9 @@ describe('반복 유형 선택', () => {
     await user.click(await screen.findByText('매년'));
 
     // 종료일 설정 (8년 후)
-    const endDateInput = screen.getByLabelText('반복 종료일');
+    const allEndDateInputs = screen.getAllByLabelText('반복 종료일');
+    const endDateInput = allEndDateInputs[0]; // 첫 번째 요소
+
     await user.type(endDateInput, '2032-02-29');
 
     // 일정 저장
@@ -469,7 +492,9 @@ describe('반복 유형 선택', () => {
     await user.type(intervalInput, '2');
 
     // 종료일 설정
-    const endDateInput = screen.getByLabelText('반복 종료일');
+    const allEndDateInputs = screen.getAllByLabelText('반복 종료일');
+    const endDateInput = allEndDateInputs[0]; // 첫 번째 요소
+
     await user.type(endDateInput, '2024-02-29');
 
     // 일정 저장
@@ -515,7 +540,7 @@ describe('반복 유형 선택', () => {
     expect(endDateInput).toBeInTheDocument();
 
     await user.type(endDateInput, '2025-12-31');
-    debug();
+
     expect(endDateInput).toHaveValue('2025-12-31');
   });
 
@@ -572,7 +597,7 @@ describe('반복 유형 선택', () => {
 
     // 일정 저장
     const eventList = within(screen.getByTestId('event-list'));
-    debug();
+
     await waitFor(() => {
       expect(eventList.getByText('2025-10-03')).toBeInTheDocument();
     });
