@@ -1031,8 +1031,10 @@ describe('반복일정 단일수정', () => {
 
     debug();
     // ✅ 추가: '단일로 변경된 일정' 근처에는 반복 아이콘이 없어야 함
-    // const changedEventBox = eventList.getByText('단일로 변경된 일정').closest('div');
-    // expect(within(changedEventBox).queryByTestId('repeat-icon')).not.toBeInTheDocument();
+    const changedEventBox = eventList.getByText('단일로 변경된 일정').closest('div');
+    if (changedEventBox) {
+      expect(within(changedEventBox).queryByTestId('repeat-icon')).not.toBeInTheDocument();
+    }
   });
 
   it('반복일정을 수정하면 단일 일정으로 변경되고 아이콘이 사라진다', async () => {
