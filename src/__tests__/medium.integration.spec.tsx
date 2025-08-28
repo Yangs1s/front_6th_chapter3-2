@@ -467,11 +467,6 @@ it('notificationTime을 10으로 하면 지정 시간 10분 전 알람 텍스트
   expect(screen.getByText('10분 후 기존 회의 일정이 시작됩니다.')).toBeInTheDocument();
 });
 
-//- 일정 생성 또는 수정 시 반복 유형을 선택할 수 있다.
-// - 반복 유형은 다음과 같다: 매일, 매주, 매월, 매년
-//     - 31일에 매월을 선택한다면 → 매월 마지막이 아닌, 31일에만 생성하세요.
-//     - 윤년 29일에 매년을 선택한다면 → 29일에만 생성하세요!
-
 describe('반복 유형 선택', () => {
   it('일정 생성 또는 수정 시 반복 유형을 선택할 수 있다.', async () => {
     setupMockHandlerCreation();
@@ -519,7 +514,7 @@ describe('반복 유형 선택', () => {
       endTime: '15:00',
       category: '업무',
       repeatType: 'monthly',
-      endDate: '2025-12-31', // 3주간
+      endDate: '2025-12-31',
     });
     await screen.findByText('일정이 추가되었습니다.');
     // 실제 검증: 생성된 일정들 확인
@@ -700,7 +695,6 @@ describe('반복 유형 선택', () => {
     // 7일간 매일 반복이 생성되는지 콘솔에서 확인 가능
   });
 });
-// 🔥 반복일정 통합테스트 - medium.integration.spec.tsx에 추가
 
 describe('반복일정 표시', () => {
   it('매주 반복일정이 캘린더에 여러 날짜에 표시된다', async () => {
@@ -820,7 +814,7 @@ describe('반복일정 표시', () => {
   });
 
   // 반복간격에 대한 테스트 해봄
-  it.skip('52주 간격 매주 반복이 1년 후 일정을 생성해야 함', async () => {
+  it('52주 간격 매주 반복이 1년 후 일정을 생성해야 함', async () => {
     setupMockHandlerBatchCreation();
 
     const { user } = setup(<App />);
@@ -1162,7 +1156,6 @@ describe('충돌 경고', () => {
     const checkBox = screen.getByLabelText('반복 일정');
     await user.click(checkBox); // 반복 해제
 
-    // ✅ 1. 겹치는 시간에 새 일정 추가 시도
     await saveSchedule(user, {
       title: '긴급 회의',
       date: '2025-10-15',
@@ -1173,32 +1166,24 @@ describe('충돌 경고', () => {
       category: '업무',
     });
 
-    // ✅ 2. 충돌 경고 다이얼로그가 나타나는지 확인
     expect(screen.getByText('일정 겹침 경고')).toBeInTheDocument();
     expect(screen.getByText(/다음 일정과 겹칩니다/)).toBeInTheDocument();
     expect(screen.getByText('기존 팀 미팅 (2025-10-15 09:00-10:00)')).toBeInTheDocument();
 
-    // ✅ 3. "계속 진행" 버튼이 있는지 확인
     const continueButton = screen.getByText('계속 진행');
     expect(continueButton).toBeInTheDocument();
 
-    // ✅ 4. "계속 진행" 버튼 클릭
     await user.click(continueButton);
 
-    // ✅ 5. 다이얼로그가 닫히고 성공 메시지 표시
     await screen.findByText('일정이 추가되었습니다.');
 
-    // ✅ 6. 두 일정이 모두 저장되어 리스트에 표시되는지 확인
     expect(eventList.getByText('기존 팀 미팅')).toBeInTheDocument();
     expect(eventList.getByText('긴급 회의')).toBeInTheDocument();
 
-    // ✅ 7. 월간 뷰에서도 두 일정이 모두 보이는지 확인
     const monthView = screen.getByTestId('month-view');
     expect(within(monthView).getByText('기존 팀 미팅')).toBeInTheDocument();
     expect(within(monthView).getByText('긴급 회의')).toBeInTheDocument();
 
-    // ✅ 8. 각 일정의 세부 정보가 올바른지 확인
-    debug();
     // expect(eventList.getByText('2025-10-15')).toBeInTheDocument();
     expect(eventList.getByText('09:00 - 10:00')).toBeInTheDocument(); // 기존 일정
     expect(eventList.getByText('09:30 - 10:30')).toBeInTheDocument(); // 새 일정
@@ -1206,3 +1191,74 @@ describe('충돌 경고', () => {
     expect(eventList.getByText('회의실 B')).toBeInTheDocument();
   });
 });
+
+describe('시간 극값 테스트', () => {
+  it('0분 일정(시작시간과 종료시간이 같음)을 저장할 수 있다', async () => {
+    setupMockHandlerCreation();
+
+    const { user } = setup(<App />);
+
+    await screen.findByText('일정 로딩 완료!');
+
+    const checkBox = screen.getByLabelText('반복 일정');
+    await user.click(checkBox); // 반복 해제
+
+    await saveSchedule(user, {
+      title: '순간 체크인',
+      date: '2025-10-15',
+      startTime: '14:30',
+      endTime: '14:30',
+      description: '빠른 상태 체크',
+      location: '온라인',
+      category: '업무',
+    });
+
+    debug();
+    await screen.findByText('시간 설정을 확인해주세요.');
+
+    // 0분 일정이 정상적으로 저장되지 않아서 아무거도 표시안되는지 확인
+    const eventList = within(screen.getByTestId('event-list'));
+    expect(eventList.queryByText('순간 체크인')).not.toBeInTheDocument();
+    expect(eventList.getByText('검색 결과가 없습니다.')).toBeInTheDocument();
+  });
+
+  it('하루 종일 일정(00:00-23:59)을 저장하고 표시할 수 있다', async () => {
+    setupMockHandlerCreation();
+
+    const { user } = setup(<App />);
+
+    await screen.findByText('일정 로딩 완료!');
+
+    const checkBox = screen.getByLabelText('반복 일정');
+    await user.click(checkBox);
+
+    // ✅ 하루 종일 일정 - 00:00부터 23:59까지
+    await saveSchedule(user, {
+      title: '연례 워크샵',
+      date: '2025-10-15',
+      startTime: '00:00', // 자정 시작
+      endTime: '23:59', // 자정 직전 종료
+      description: '전사 워크샵 및 팀 빌딩',
+      location: '리조트',
+      category: '업무',
+    });
+
+    await screen.findByText('일정이 추가되었습니다.');
+
+    // ✅ 하루 종일 일정이 정상적으로 저장되고 표시되는지 확인
+    const eventList = within(screen.getByTestId('event-list'));
+    expect(eventList.getByText('연례 워크샵')).toBeInTheDocument();
+    expect(eventList.getByText('2025-10-15')).toBeInTheDocument();
+    expect(eventList.getByText('00:00 - 23:59')).toBeInTheDocument(); // 하루 종일 표시
+    expect(eventList.getByText('전사 워크샵 및 팀 빌딩')).toBeInTheDocument();
+    expect(eventList.getByText('리조트')).toBeInTheDocument();
+
+    // ✅ 월간 뷰에서도 하루 종일 일정이 표시되는지 확인
+    const monthView = screen.getByTestId('month-view');
+    expect(within(monthView).getByText('연례 워크샵')).toBeInTheDocument();
+
+    // ✅ 알림도 정상적으로 설정되는지 확인 (시간이 특별해도 알림 작동)
+    expect(eventList.getByText('알림: 10분 전')).toBeInTheDocument();
+  });
+});
+/// 심화 과제
