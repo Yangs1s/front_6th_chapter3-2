@@ -136,7 +136,7 @@ function App() {
       location,
       category,
       repeat: {
-        type: isRepeating ? repeatType : 'none',
+        type: editingEvent ? 'none' : isRepeating ? repeatType : 'none',
         interval: repeatInterval,
         endDate: repeatEndDate || undefined,
       },
@@ -148,7 +148,7 @@ function App() {
       setOverlappingEvents(overlapping);
       setIsOverlapDialogOpen(true);
     } else {
-      await saveEvent(eventData, isRepeating);
+      await saveEvent(eventData, editingEvent ? false : isRepeating);
       resetForm();
     }
   };
