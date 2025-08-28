@@ -73,7 +73,7 @@ export function generateRepeatInstances(eventData: EventForm): EventForm[] {
   const startDate = new Date(eventData.date);
   const endDate = eventData.repeat.endDate
     ? new Date(eventData.repeat.endDate)
-    : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1년 후까지
+    : new Date('2025-10-31'); // 1년 후까지
 
   const { type, interval } = eventData.repeat;
 

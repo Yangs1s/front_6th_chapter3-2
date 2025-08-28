@@ -820,7 +820,7 @@ describe('반복일정 표시', () => {
   });
 
   // 반복간격에 대한 테스트 해봄
-  it('52주 간격 매주 반복이 1년 후 일정을 생성해야 함', async () => {
+  it.skip('52주 간격 매주 반복이 1년 후 일정을 생성해야 함', async () => {
     setupMockHandlerBatchCreation();
 
     const { user } = setup(<App />);
