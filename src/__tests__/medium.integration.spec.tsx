@@ -6,7 +6,6 @@ import { http, HttpResponse } from 'msw';
 import { SnackbarProvider } from 'notistack';
 import { ReactElement } from 'react';
 import { expect, vi } from 'vitest';
-import { debug } from 'vitest-preview';
 
 import {
   setupMockHandlerBatchCreation,
@@ -184,7 +183,6 @@ describe('일정 CRUD 및 기본 기능', () => {
 
     await screen.findByText('일정이 추가되었습니다.');
 
-    debug();
     const eventList = within(screen.getByTestId('event-list'));
 
     expect(eventList.getByText(longTitle)).toBeInTheDocument();
@@ -856,7 +854,7 @@ describe('반복일정 표시', () => {
     // 2026년 10월에 "연간 회의"가 표시되는지 확인
     const eventList = within(screen.getByTestId('event-list'));
     expect(eventList.getByText('연간 회의')).toBeInTheDocument();
-    debug();
+
     expect(eventList.getByText('2026-10-14')).toBeInTheDocument();
   });
 });
@@ -1023,7 +1021,6 @@ describe('반복일정 단일수정', () => {
     const afterEditIcons = screen.getAllByTestId('repeat-icon');
     expect(afterEditIcons).toHaveLength(4); // 2개 일정 * 2곳(월별뷰+리스트뷰)
 
-    debug();
     // ✅ 추가: '단일로 변경된 일정' 근처에는 반복 아이콘이 없어야 함
     const changedEventBox = eventList.getByText('단일로 변경된 일정').closest('div');
     if (changedEventBox) {
@@ -1127,7 +1124,8 @@ describe('반복일정 아이콘', () => {
     expect(repeatIcons).toHaveLength(6);
   });
 });
-// 충돌 경고, 시간극값 테스트 심화
+
+// 충돌 경고, 시간극값 테스트 심화 과제
 describe('충돌 경고', () => {
   it('겹치는 일정 경고를 확인하고 계속 진행하여 저장한다', async () => {
     // 기존 일정이 있는 상황 설정
@@ -1193,7 +1191,7 @@ describe('충돌 경고', () => {
 });
 
 describe('시간 극값 테스트', () => {
-  it('0분 일정(시작시간과 종료시간이 같음)을 저장할 수 있다', async () => {
+  it('0분 일정(시작시간과 종료시간이 같음)을 저장할 수 없다.', async () => {
     setupMockHandlerCreation();
 
     const { user } = setup(<App />);
@@ -1213,7 +1211,6 @@ describe('시간 극값 테스트', () => {
       category: '업무',
     });
 
-    debug();
     await screen.findByText('시간 설정을 확인해주세요.');
 
     // 0분 일정이 정상적으로 저장되지 않아서 아무거도 표시안되는지 확인
@@ -1235,7 +1232,7 @@ describe('시간 극값 테스트', () => {
     // ✅ 하루 종일 일정 - 00:00부터 23:59까지
     await saveSchedule(user, {
       title: '연례 워크샵',
-      date: '2025-10-15',
+      date: '2025-10-02',
       startTime: '00:00', // 자정 시작
       endTime: '23:59', // 자정 직전 종료
       description: '전사 워크샵 및 팀 빌딩',
@@ -1248,7 +1245,7 @@ describe('시간 극값 테스트', () => {
     // ✅ 하루 종일 일정이 정상적으로 저장되고 표시되는지 확인
     const eventList = within(screen.getByTestId('event-list'));
     expect(eventList.getByText('연례 워크샵')).toBeInTheDocument();
-    expect(eventList.getByText('2025-10-15')).toBeInTheDocument();
+    expect(eventList.getByText('2025-10-02')).toBeInTheDocument();
     expect(eventList.getByText('00:00 - 23:59')).toBeInTheDocument(); // 하루 종일 표시
     expect(eventList.getByText('전사 워크샵 및 팀 빌딩')).toBeInTheDocument();
     expect(eventList.getByText('리조트')).toBeInTheDocument();
@@ -1256,9 +1253,11 @@ describe('시간 극값 테스트', () => {
     // ✅ 월간 뷰에서도 하루 종일 일정이 표시되는지 확인
     const monthView = screen.getByTestId('month-view');
     expect(within(monthView).getByText('연례 워크샵')).toBeInTheDocument();
-
+    act(() => {
+      vi.advanceTimersByTime(24 * 60 * 60 * 1000 - 10 * 1000 * 60 - 1000);
+    });
     // ✅ 알림도 정상적으로 설정되는지 확인 (시간이 특별해도 알림 작동)
-    expect(eventList.getByText('알림: 10분 전')).toBeInTheDocument();
+    // await screen.findAllByText(/10분 후 연례 워크샵 일정이 시작됩니다/);
+    expect(await screen.findByText(/10분 후 연례 워크샵 일정이 시작됩니다/)).toBeInTheDocument();
   });
 });
-/// 심화 과제
