@@ -1133,3 +1133,76 @@ describe('반복일정 아이콘', () => {
     expect(repeatIcons).toHaveLength(6);
   });
 });
+
+describe('충돌 경고', () => {
+  it('겹치는 일정 경고를 확인하고 계속 진행하여 저장한다', async () => {
+    // 기존 일정이 있는 상황 설정
+    setupMockHandlerCreation([
+      {
+        id: '1',
+        title: '기존 팀 미팅',
+        date: '2025-10-15',
+        startTime: '09:00',
+        endTime: '10:00',
+        description: '주간 팀 미팅',
+        location: '회의실 A',
+        category: '업무',
+        repeat: { type: 'none', interval: 0 },
+        notificationTime: 10,
+      },
+    ]);
+
+    const { user } = setup(<App />);
+
+    // 기존 일정이 먼저 화면에 표시되는지 확인
+    await screen.findByText('일정 로딩 완료!');
+    const eventList = within(screen.getByTestId('event-list'));
+    expect(eventList.getByText('기존 팀 미팅')).toBeInTheDocument();
+
+    const checkBox = screen.getByLabelText('반복 일정');
+    await user.click(checkBox); // 반복 해제
+
+    // ✅ 1. 겹치는 시간에 새 일정 추가 시도
+    await saveSchedule(user, {
+      title: '긴급 회의',
+      date: '2025-10-15',
+      startTime: '09:30', // 기존 일정(09:00-10:00)과 겹침
+      endTime: '10:30',
+      description: '긴급한 사항 논의',
+      location: '회의실 B',
+      category: '업무',
+    });
+
+    // ✅ 2. 충돌 경고 다이얼로그가 나타나는지 확인
+    expect(screen.getByText('일정 겹침 경고')).toBeInTheDocument();
+    expect(screen.getByText(/다음 일정과 겹칩니다/)).toBeInTheDocument();
+    expect(screen.getByText('기존 팀 미팅 (2025-10-15 09:00-10:00)')).toBeInTheDocument();
+
+    // ✅ 3. "계속 진행" 버튼이 있는지 확인
+    const continueButton = screen.getByText('계속 진행');
+    expect(continueButton).toBeInTheDocument();
+
+    // ✅ 4. "계속 진행" 버튼 클릭
+    await user.click(continueButton);
+
+    // ✅ 5. 다이얼로그가 닫히고 성공 메시지 표시
+    await screen.findByText('일정이 추가되었습니다.');
+
+    // ✅ 6. 두 일정이 모두 저장되어 리스트에 표시되는지 확인
+    expect(eventList.getByText('기존 팀 미팅')).toBeInTheDocument();
+    expect(eventList.getByText('긴급 회의')).toBeInTheDocument();
+
+    // ✅ 7. 월간 뷰에서도 두 일정이 모두 보이는지 확인
+    const monthView = screen.getByTestId('month-view');
+    expect(within(monthView).getByText('기존 팀 미팅')).toBeInTheDocument();
+    expect(within(monthView).getByText('긴급 회의')).toBeInTheDocument();
+
+    // ✅ 8. 각 일정의 세부 정보가 올바른지 확인
+    debug();
+    // expect(eventList.getByText('2025-10-15')).toBeInTheDocument();
+    expect(eventList.getByText('09:00 - 10:00')).toBeInTheDocument(); // 기존 일정
+    expect(eventList.getByText('09:30 - 10:30')).toBeInTheDocument(); // 새 일정
+    expect(eventList.getByText('회의실 A')).toBeInTheDocument();
+    expect(eventList.getByText('회의실 B')).toBeInTheDocument();
+  });
+});
