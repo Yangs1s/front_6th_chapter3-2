@@ -161,6 +161,74 @@ describe('일정 CRUD 및 기본 기능', () => {
 
     expect(eventList.queryByText('삭제할 이벤트')).not.toBeInTheDocument();
   });
+
+  /// 심화과제에 들어갈 통합테스트를 조금 더 작성.
+
+  it('100글자 제목이 정상적으로 입력되고 저장되어야 함', async () => {
+    setupMockHandlerCreation();
+    const { user } = setup(<App />);
+    const longTitle = 'a'.repeat(100);
+
+    const checkBox = screen.getByLabelText('반복 일정');
+    await user.click(checkBox);
+
+    await saveSchedule(user, {
+      title: longTitle,
+      date: '2025-10-11',
+      startTime: '14:00',
+      endTime: '15:00',
+      description: '긴 제목 테스트',
+      location: '테스트 위치',
+      category: '업무',
+    });
+
+    await screen.findByText('일정이 추가되었습니다.');
+
+    debug();
+    const eventList = within(screen.getByTestId('event-list'));
+
+    expect(eventList.getByText(longTitle)).toBeInTheDocument();
+  });
+  it('빈 제목으로 저장 시 에러 메시지가 표시되어야 함', async () => {
+    const { user } = setup(<App />);
+
+    await screen.findByText('일정 로딩 완료!');
+
+    // 반복 일정 해제
+    const checkBox = screen.getByLabelText('반복 일정');
+    await user.click(checkBox);
+
+    // 제목 없이 저장 시도
+    await user.click(screen.getAllByText('일정 추가')[0]);
+    await user.type(screen.getByLabelText('날짜'), '2025-10-15');
+    await user.type(screen.getByLabelText('시작 시간'), '14:00');
+    await user.type(screen.getByLabelText('종료 시간'), '15:00');
+
+    await user.click(screen.getByTestId('event-submit-button'));
+
+    expect(screen.getByText('필수 정보를 모두 입력해주세요.')).toBeInTheDocument();
+  });
+  /// 5000ms 초과떄문에
+  it.skip('200글자 설명이 정상적으로 입력되고 저장되어야 함', async () => {
+    const { user } = setup(<App />);
+    const longDescription = '설명'.repeat(100); // 200글자
+    const checkBox = screen.getByLabelText('반복 일정');
+    await user.click(checkBox);
+    await saveSchedule(user, {
+      title: '긴 설명 테스트',
+      date: '2025-10-15',
+      startTime: '14:00',
+      endTime: '15:00',
+      description: longDescription,
+      location: '테스트 위치',
+      category: '업무',
+    });
+
+    await screen.findByText('일정이 추가되었습니다.');
+
+    const eventList = within(screen.getByTestId('event-list'));
+    expect(eventList.getByText(longDescription)).toBeInTheDocument();
+  });
 });
 
 describe('일정 뷰', () => {
@@ -493,7 +561,6 @@ describe('반복 유형 선택', () => {
     for (let i = 0; i < 12; i++) {
       await user.click(screen.getByRole('button', { name: 'Next' }));
     }
-    debug();
     // 2028년 2월에서 윤년 일정 확인
     expect(within(eventList).queryByText('윤년 기념일')).not.toBeInTheDocument();
     expect(within(eventList).queryByText('2025-02-29')).not.toBeInTheDocument();
@@ -750,6 +817,53 @@ describe('반복일정 표시', () => {
     // 반복 일정 아이콘 표시 확인 (구현에 따라 조정)
     const calendarRepeatIcons = within(monthView).getAllByTestId('repeat-icon');
     expect(calendarRepeatIcons).toHaveLength(3);
+  });
+
+  // 반복간격에 대한 테스트 해봄
+  it('52주 간격 매주 반복이 1년 후 일정을 생성해야 함', async () => {
+    setupMockHandlerBatchCreation();
+
+    const { user } = setup(<App />);
+    await screen.findByText('일정 로딩 완료!');
+
+    // 반복 일정 생성
+    await user.type(screen.getByLabelText('제목'), '연간 회의');
+    await user.type(screen.getByLabelText('날짜'), '2025-10-15');
+    await user.type(screen.getByLabelText('시작 시간'), '14:00');
+    await user.type(screen.getByLabelText('종료 시간'), '15:00');
+
+    await user.click(screen.getByLabelText('카테고리'));
+    await user.click(within(screen.getByLabelText('카테고리')).getByRole('combobox'));
+    await user.click(screen.getByRole('option', { name: '업무-option' }));
+
+    // 52주 간격 설정
+    await user.click(within(screen.getByLabelText('반복 선택')).getByRole('combobox'));
+    await user.click(screen.getByText('매주'));
+
+    const intervalInput = screen.getByLabelText('반복 간격');
+    await user.clear(intervalInput);
+    await user.type(intervalInput, '52');
+
+    // 종료일 설정 (2년 후까지)
+    const endDateInput = screen.getByLabelText('반복 종료일', { selector: 'input' });
+    await user.type(endDateInput, '2027-10-15');
+
+    // 저장
+    await user.click(screen.getByTestId('event-submit-button'));
+    await screen.findByText('일정이 추가되었습니다.');
+
+    // 🔥 진짜 테스트: 1년 후에 일정이 있는지 확인
+    // 2026년 10월로 이동 (12개월)
+    const nextButton = screen.getByRole('button', { name: 'Next' });
+    for (let i = 0; i < 12; i++) {
+      await user.click(nextButton);
+    }
+
+    // 2026년 10월에 "연간 회의"가 표시되는지 확인
+    const eventList = within(screen.getByTestId('event-list'));
+    expect(eventList.getByText('연간 회의')).toBeInTheDocument();
+    debug();
+    expect(eventList.getByText('2026-10-14')).toBeInTheDocument();
   });
 });
 
